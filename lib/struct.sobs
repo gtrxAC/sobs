@@ -1,0 +1,39 @@
+//
+// Data structures
+// Structures in sobs are collections of data stored in global variables.
+// They have a specific type and properties which can be set, retrieved,
+// deleted, and checked for existence, like normal variables.
+// ___________________________________________________________________________
+//
+
+//
+// Create a structure named [name] of type [type]
+func struct		
+args name type
+	sset $name type $type
+	return $name
+
+//
+// Get the value of [prop] in structure [name]
+func sget
+args name prop
+	return (gget $name . $prop)
+
+//
+// Set [prop] to [value] in structure [name]
+func sset
+args name prop value
+	gset (str $name . $prop) $value
+	return $value
+
+//
+// Check if structure [name] has property [prop]
+func sdef
+args name prop
+	return (gdef $name . $prop)
+
+//
+// Delete property [prop] of structure [name]
+func sdel
+args name prop
+	gdel $name . $prop

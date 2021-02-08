@@ -1,0 +1,33 @@
+//
+// Logical operators
+// ___________________________________________________________________________
+//
+
+//
+// Logical NOT (negate the input)
+func !
+	return (= $arg0 0)
+
+//
+// OR (return 1 only if at least one argument is true)
+func ||
+	set index 0
+	:_orloop
+	if (get arg $index)
+		return 1
+	++ index
+	if (< $index $argcount)
+		goto _orloop
+	return 0
+
+//
+// AND (return 1 only if all arguments are true)
+func &&
+	set index 0
+	:_andloop
+	if (! (get arg $index))
+		return 0
+	++ index
+	if (< $index $argcount)
+		goto _andloop
+	return 1

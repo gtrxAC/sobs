@@ -1,0 +1,19 @@
+//
+// Comparison operators
+// ___________________________________________________________________________
+//
+
+//
+// Check if two values are not equal
+func !=			
+	return (! (= $arg0 $arg1))
+
+//
+// Check if one value is less than or equal to the other
+func <=
+	return (|| (< $arg0 $arg1) (= $arg0 $arg1))
+
+//
+// Check if one value is greater than or equal to the other
+func >=
+	return (|| (> $arg0 $arg1) (= $arg0 $arg1))

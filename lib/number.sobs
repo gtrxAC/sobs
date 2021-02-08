@@ -1,0 +1,15 @@
+//
+// Number utilities
+// ___________________________________________________________________________
+//
+
+//
+// Convert a number to an integer
+func int		
+	return (- $arg0 (% $arg0 1))
+
+//
+// Check if [number] is in the [min] .. [max] range
+func inrange
+args number min max
+	return (&& (>= $number $min) (<= $number $max))

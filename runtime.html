@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<!-- <link rel="icon" href="favicon.ico" type="image/x-icon"> -->
+		<title>sobs</title>
+		<style>
+			html {
+				height: 100%;
+			}
+			body {
+				height: 100%;
+				background-color: #30373d;
+				display: flex;
+				justify-content: center;
+				margin: 0;
+			}
+			#err {
+				background-color: #f24;
+				color: white;
+				font-family: monospace;
+				padding: 1em;
+				display: none;
+			}
+			#screen {
+				height: 100%;
+				align-items: center;
+				display: flex;
+				justify-content: center;
+			}
+			canvas {
+				image-rendering: pixelated;
+			}
+		</style>
+	</head>
+	<body>
+		<div style="display: none;">
+			<!-- sobs-img-here -->
+		</div>
+		<div id="err"></div>
+		<div id="screen">
+			<canvas width="224" height="224"></canvas>
+		</div>
+		<script type="text/javascript">
+			'use strict';
+			// sobs-code-here
+			script.unshift('func _eval_buffer', '\tdummy');
+
+			// regular expression to parse arguments in commands, see parseCommand()
+			const ARGPARSER	= new RegExp(
+				// Option 1: quoted string
+				"(?<!\\u200b)\"" +		// " not prefixed by zero width space
+				"([^\"]*)" + 			// any amount of any character except "
+				"(?<!\\u200b)\"|" +		// " not prefixed by zero width space
+
+				// Option 2: global variable lookup
+				"@(\\S+)|" +			// @ and one or more non-whitespace chars
+
+				// Option 3: local variable lookup
+				"\\$(\\S+)|" +			// $ and one or more non-whitespace chars
+
+				// Option 4: direct string
+				"(\\S+)",				// one or more non-whitespace chars
+				'g'
+			),
+
+			BRACEPARSER = /(?<!\u200b)\(([^()]+)(?<!\u200b)\)/g,
+			INDENT		= /^(\t*)/,
+			images		= document.querySelectorAll('img'),
+			canvas		= document.querySelector('canvas'),
+			ctx			= canvas.getContext('2d');
+
+			let
+			vars 		= [],			// stack of variable maps indexed by context
+			globals		= new Map(),	// global variables
+			curline		= 0,			// current line
+			returns		= [Infinity],	// return point stack
+			scale		= 1,			// screen scaling factor (used to calculate mouse pos)
+			keys		= new Set(),	// keys that are down
+			mbuttons	= [],			// mouse buttons that are down
+			rv;							// result of previous command
+
+			// shorthand to get the current variable context
+			Object.defineProperty(vars, 'local', {get: () => {return vars[vars.length - 1]}});
+
+			// apply some default settings to the canvas
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+			ctx.textBaseline = 'top';
+			ctx.imageSmoothingEnabled = false;
+			ctx.lineWidth = 1;
+
+			// variables to easily insert escaped " ( )
+			globals.set('QUOT', '\u200b"')
+			.set('LP', '\u200b(')
+			.set('RP', '\u200b)');
+
+			// Logs an error message to the console.
+			function err(msg) {
+				alert(`${msg} (at ${vars.local.get('_funcname')})`);
+				throw new Error(msg);
+			}
+
+			// Skips to the next line where the indent level is less than or equal to the current line.
+			function skipIndent() {
+				curline = script.findIndex((e, i) => {
+					return i > curline && getIndent(e) <= getIndent(script[curline]);
+				}) - 1;
+
+				if (curline < 0) curline = Infinity;
+			}
+
+			// Gets the amount of leading tabs in a line.
+			function getIndent(line) {
+				return INDENT.exec(line) ?
+					INDENT.exec(line)[0].length
+					: 0;
+			}
+
+			// Parses the arguments of an expression and runs a function/command.
+			function parseCommand(line) {
+				// Parse the arguments into an array.
+				const arg = [];
+				line.replace(ARGPARSER, (m, s, v, c, d) => {
+					arg.push(
+						s || d ||						// 1. quoted or unquoted string
+						(v ?							
+							globals.get(v) ?? -1		// 2. global variable lookup
+							: vars.local.get(c) ?? -1	// 3. local variable lookup
+						)
+					);
+				});
+				
+				const cmd = arg.shift();
+				console.log(`${curline}: ${script[curline]}\nCommand: ${cmd}\nArgs: ${arg}`);
+
+				// Run the command.
+				if (globals.has(cmd)) {
+					// If a user-defined function was found, run it.
+					vars.push(new Map());
+					vars.local.set('argcount', arg.length);
+					arg.forEach((arg, index) => {
+						vars.local.set(`arg${index}`, arg || 0);
+					})
+					returns.push(curline);
+					runFunction(cmd, false);
+				} else {
+					// Otherwise run a built-in command.
+					rv = runCommand(cmd, arg);
+				}
+			}
+
+			// Runs a built-in command.
+			function runCommand(cmd, arg) {
+				// Skip jump points.
+				if (cmd[0] === ':') return;
+				switch (cmd) { 
+					// Control Logic
+					case 'return': curline = returns.pop(); vars.pop(); return arg.join('');
+					case 'func': curline = returns.pop(); vars.pop(); break;
+
+					case 'eval':
+						script[1] = `\treturn (${arg[0]})`;
+						runFunction('_eval_buffer', false);
+						break;
+
+					case 'args':
+						arg.forEach((a, i) => {
+							vars.local.set(a, vars.local.get(`arg${i}`) ?? -1)
+						}); 
+						break;
+
+					case 'if':
+						vars.local.set(`_if${getIndent(script[curline])}`, Number(arg[0]));
+						if (!(Number(arg[0]))) skipIndent();
+						break;
+
+					case 'else':
+						if (vars.local.get(`_if${getIndent(script[curline])}`)) {
+							skipIndent();
+						};
+						break;
+
+					case 'goto':
+						if (globals.has(arg[0])) {
+							curline = globals.get(arg[0]);
+						} else {
+							err(`jump point "${arg[0]}" not defined`);
+						}
+						break;
+					
+					// Variables
+					case 'set': vars.local.set(arg.shift(), arg.join('')); break;
+					case 'get': return vars.local.get(arg.join('')) ?? -1;
+					case 'def': return Number(vars.local.has(arg.join('')));
+					case 'del': arg.forEach(k => vars.local.delete(k)); break;
+
+					// Global Variables (gvars)
+					case 'gset': globals.set(arg.shift(), arg.join('')); break;
+					case 'gget': return globals.get(arg.join('')) ?? -1;
+					case 'gdef': return Number(globals.has(arg.join('')));
+					case 'gdel': arg.forEach(k => globals.delete(k)); break;
+
+					// Previous Context Variables (pvars)
+					case 'pset': vars[vars.length - 2]?.set(arg.shift(), arg.join('')); break;
+					case 'pget': return vars[vars.length - 2]?.get(arg.join('')) ?? -1;
+					case 'pdef': return Number(vars[vars.length - 2]?.has(arg.join('')));
+					case 'pdel': arg.forEach(k => vars[vars.length - 2]?.delete(k)); break;
+					
+					// Persistent Variables
+					case 'save': localStorage.setItem(arg.shift(), arg.join('')); break;
+					case 'load': return localStorage.getItem(arg.join('')) ?? -1;
+
+					// Math
+					case '+': let x = 0; arg.forEach(a => x += Number(a)); return x;
+					case '-': return Number(arg[0]) - arg[1];
+					case '*': return Number(arg[0]) * arg[1];
+					case '/': return Number(arg[0]) / arg[1];
+					case '%': return Number(arg[0]) % arg[1];
+					case '=': return Number(arg[0] == arg[1]);
+					case '<': return Number(Number(arg[0]) < Number(arg[1]));
+					case '>': return Number(Number(arg[0]) > Number(arg[1]));
+					case 'rnd': return Math.floor(Math.random() * (arg[1] - arg[0] + 1)) + arg[0];
+					case 'time': return Date.now();
+
+					// Strings
+					case 'len': return arg.join('').length;
+					case 'slice': return arg[0].slice(arg[1], arg[2]);
+					case 'str': return arg.join('');
+					case 'enc': return String.fromCodePoint(arg[0]);
+					case 'dec': return arg[0].codePointAt(0);
+
+					// I/O
+					case 'log': console.log(arg.join('')); break;
+					case 'err': err(arg.join('')); break;
+					case 'key': return Number(keys.has(arg.join('')));
+					case 'mouse': return mbuttons[arg[0]];
+
+					// Graphics
+					case 'cls': ctx.fillRect(0, 0, canvas.width, canvas.height); break;
+					case 'color': ctx.fillStyle = arg[0]; ctx.strokeStyle = arg[0]; break;
+					case 'font': ctx.font = arg.join(''); break;
+					case 'text': ctx.fillText(arg[0], arg[1], arg[2]); break;
+					case 'mtext': return ctx.measureText(arg.join('')).width;
+					case 'img': ctx.drawImage(images[arg[0]], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[3], arg[4]); break;
+
+					case 'res':
+						canvas.width = arg[0];
+						canvas.height = arg[1] || arg[0];
+						onresize();
+						ctx.fillStyle = 'black';
+						ctx.fillRect(0, 0, canvas.width, canvas.height);
+						ctx.fillStyle = ctx.strokeStyle;
+						break;
+
+					case 'rect':
+						ctx.lineWidth = arg[4];
+						if (arg[4]) {
+							ctx.strokeRect(...arg);
+						} else {
+							ctx.fillRect(...arg);
+						}
+						break;
+
+					case 'circle':
+						ctx.lineWidth = arg[4];
+						const startX = Number(arg[0]) + (arg[2] / 2);
+						const startY = Number(arg[1]) + (arg[3] / 2);
+						ctx.beginPath();
+						ctx.ellipse(startX, startY, arg[2] / 2, arg[3] / 2, 0, 0, 2 * Math.PI);
+						arg[4] ? ctx.stroke() : ctx.fill();
+						break;
+
+					case 'line':
+						ctx.lineWidth = arg[4] ?? 1;
+						ctx.beginPath();
+						ctx.moveTo(arg[0], arg[1]);
+						ctx.lineTo(arg[2], arg[3]);
+						ctx.closePath();
+						ctx.stroke();
+						break;
+
+					case 'debug': debugger; break;
+					default: err(`unknown command "${cmd}"`);
+				}
+			}
+
+			// Parses and runs each line of a function.
+			function runFunction(fn, newContext = true) {
+				if (!globals.has(fn)) {
+					err(`unknown function ${fn}`);
+					return;
+				}
+
+				if (newContext) vars.push(new Map());
+				
+				vars.local.set('_funcname', fn);
+
+				curline = Number(globals.get(fn)) + 1;
+				const curreturns = returns.length;
+
+				while (curline < script.length && returns.length >= curreturns) {
+					let line = script[curline];
+				
+					// Parse and run the line.
+					while (BRACEPARSER.test(line)) {
+						line = line.replace(BRACEPARSER, (m, g1) => {
+							parseCommand(g1);
+							return `"${rv}"`;
+						})
+					}
+					
+					// Run the parsed command.
+					parseCommand(line);
+				
+					// Go to the next line.
+					curline++;
+				}
+				// When running a line which has a brace expression with a user-defined function,
+				// the next line will be skipped. Go to the previous line to prevent this.
+				curline--;
+			}
+
+			// Parse functions and jump points.
+			script.forEach((line, index) => {
+				if (line.trim().startsWith('func ')) {
+					const fn = line.trim().slice(5);
+					if (globals.has(fn)) err(`multiple definitions of "${fn}"`);
+					console.log(`function ${fn}`);
+					globals.set(fn, index);
+				} else if (line.trim()[0] === ':') {
+					const point = line.trim().slice(1);
+					if (globals.has(point)) err(`multiple definitions of "${point}"`);
+					console.log(`jump point ${point}`);
+					globals.set(point, index);
+				}
+			})
+
+			onresize = () => {
+				// Integer scale the screen to fit the window.
+				scale = Math.min(
+					Math.floor(innerWidth / canvas.width),
+					Math.floor(innerHeight / canvas.height)
+				)
+				
+				// If the screen is too small, allow fractional scaling.
+				|| Math.min(
+					innerWidth / canvas.width,
+					innerHeight / canvas.height
+				)
+				
+				canvas.style.imageRendering = (scale % 1 ? 'unset' : 'pixelated');
+				canvas.style.width = canvas.width * scale + 'px';
+				canvas.style.height = canvas.height * scale + 'px';
+			}
+
+			onload = () => {
+				onresize();
+
+				// Run any library init functions (defined with "func init myfunction")
+				for (let entry of globals) {
+					if (entry[0].startsWith('init ')) runFunction(entry[0]);
+				}
+
+				// Run the main init function.
+				if (globals.has('init')) runFunction('init');
+
+				// Run the main loop 60 times per second.
+				if (globals.has('mainloop')) {
+					setInterval(() => {
+						// Update mouse timers.
+						for (let button of mbuttons) {
+							if (button) button++;
+						}
+
+						runFunction('mainloop');
+					}, 1000 / 60);
+				}
+
+				// Update key/mouse variables when keyboard/mouse buttons are pressed.
+				document.addEventListener('keydown', e => keys.add(e.key));
+				document.addEventListener('keyup', e => keys.delete(e.key));
+				document.addEventListener('mousedown', e => mbuttons[e.button] = 1);
+				document.addEventListener('mouseup', e => mbuttons[e.button] = 0);
+				
+				// Update mousex/y variables when the mouse is moved.
+				canvas.onmousemove = event => {
+					globals.set('mousex', Math.floor(event.offsetX / scale))
+					.set('mousey', Math.floor(event.offsetY / scale));
+				}
+			}
+		</script>
+	</body>
+</html>

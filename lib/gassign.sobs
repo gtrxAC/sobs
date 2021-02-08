@@ -1,0 +1,46 @@
+//
+// Compound assignment operators for global variables
+// ___________________________________________________________________________
+//
+
+//
+// Increment global variable by one
+func g++
+	gset $arg0 (+ (gget $arg0) 1)
+	return
+
+//
+// Decrement global variable by one
+func g--
+	gset $arg0 (- (gget $arg0) 1)
+	return
+
+//
+// Addition assignment on global variable
+func g+=
+	gset $arg0 (+ (gget $arg0) $arg1)
+	return
+
+//
+// Subtraction assignment on global variable
+func g-=
+	gset $arg0 (- (gget $arg0) $arg1)
+	return
+
+//
+// Multiplication assignment on global variable
+func g*=
+	gset $arg0 (* (gget $arg0) $arg1)
+	return
+
+//
+// Division assignment on global variable
+func g/=
+	gset $arg0 (/ (gget $arg0) $arg1)
+	return
+
+//
+// Mod assignment on global variable
+func g%=
+	gset $arg0 (% (gget $arg0) $arg1)
+	return

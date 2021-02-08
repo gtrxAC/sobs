@@ -1,0 +1,88 @@
+//
+// Static length arrays
+// Requires: include lib/struct
+// ___________________________________________________________________________
+//
+
+//
+// Create an array named [name] with length [length]
+func dim
+args name length
+	struct $name array
+	sset $name length $length
+	return
+
+//
+// Get the value of [index] in [array]
+func peek
+args array index
+	_checkArray $array
+	_checkInBounds $array $index
+	return (sget $array $index)
+
+//
+// Set [index] of [array] to [value]
+func poke
+args array index value
+	_checkArray $array
+	_checkInBounds $array $index
+	sset $array $index $value
+	return
+	
+//
+// Get the length of [array]
+func alen
+	_checkArray $arg0
+	return (sget $arg0 length)
+
+//
+// Check if [array] has [value]
+func has
+args array value
+	_checkArray $array
+	set result 0
+	loop $array _hasTestFunction
+	return $result
+
+//
+// Run [function] for each index of [array]
+// The function receives three args: value, index, array name
+func loop
+args array function
+	_checkArray $array
+	set index 0
+	:_arrayLoopJump
+		$function (peek $array $index) $index $array
+		set index (+ $index 1)
+	if (< $index (alen $array))
+		goto _arrayLoopJump
+	return
+
+//
+// Internal, used by the "has" command
+func _hasTestFunction
+	if (= $arg0 (pget value))
+		pset result 1
+	return
+
+//
+// Internal, initialize a new array with -1
+func _arrayInitFunction
+args "" index array
+	poke $array $index -1
+	return
+
+//
+// Internal, check if structure is an array
+func _checkArray
+	if (= 0 (= (sget $arg0 type) array))
+		err "Specified structure " @QUOT $arg0 @QUOT " is not an array"
+	return
+
+//
+// Internal, check if array index is in bounds
+func _checkInBounds
+args array index
+	if (> (sget $array length) (- $index 1))
+		err "cannot access index " $index "of array " @QUOT $array @QUOT
+	return

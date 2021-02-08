@@ -1,0 +1,9 @@
+//
+// String utilities
+// ___________________________________________________________________________
+//
+
+//
+// Get the character at the specified index of a string
+func at
+	return (slice $arg0 $arg1 (+ $arg1 1))

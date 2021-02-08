@@ -1,0 +1,46 @@
+//
+// Compound assignment operators
+// ___________________________________________________________________________
+//
+
+//
+// Increment local variable by one
+func ++
+	pset $arg0 (+ (pget $arg0) 1)
+	return
+
+//
+// Decrement local variable by one
+func --
+	pset $arg0 (- (pget $arg0) 1)
+	return
+
+//
+// Addition assignment on local variable
+func +=
+	pset $arg0 (+ (pget $arg0) $arg1)
+	return
+
+//
+// Subtraction assignment on local variable
+func -=
+	pset $arg0 (- (pget $arg0) $arg1)
+	return
+
+//
+// Multiplication assignment on local variable
+func *=
+	pset $arg0 (* (pget $arg0) $arg1)
+	return
+
+//
+// Division assignment on local variable
+func /=
+	pset $arg0 (/ (pget $arg0) $arg1)
+	return
+
+//
+// Mod assignment on local variable
+func %=
+	pset $arg0 (% (pget $arg0) $arg1)
+	return
