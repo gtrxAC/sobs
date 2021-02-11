@@ -83,6 +83,6 @@ func _checkArray
 // Internal, check if array index is in bounds
 func _checkInBounds
 args array index
-	if (> (sget $array length) (- $index 1))
+	if (< (sget $array length) (- $index 1))
 		err "cannot access index " $index "of array " @QUOT $array @QUOT
 	return

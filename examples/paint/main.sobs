@@ -1,0 +1,183 @@
+load sheet.png
+
+include lib/assign
+include lib/gassign
+include lib/logic
+include lib/comp
+include lib/struct
+include lib/array
+include lib/number
+
+func init consts
+	gset TOOL_PENCIL 0
+	gset TOOL_FILL 1
+	gset TOOL_RECT 2
+	gset TOOL_RESIZE 3
+	gset TOOL_CLEAR 4
+
+	dim colors 12
+	poke colors 0 #000000
+	poke colors 1 #686060
+	poke colors 2 #b8b8c0
+	poke colors 3 #ffffff
+	poke colors 4 #902000
+	poke colors 5 #d04040
+	poke colors 6 #ffb000
+	poke colors 7 #fff020
+	poke colors 8 #500090
+	poke colors 9 #3050b0
+	poke colors 10 #20a0c0
+	poke colors 11 #20e090
+
+	gset BACKGROUND_COLOR (peek colors 2)
+	return
+
+func mouseat
+args x y w h
+	if (= (+ (> @mousex (- $x 1)) (< @mousex (+ $x $w 1))) 2)
+		if (= (+ (> @mousey (- $y 1)) (< @mousey (+ $y $h 1))) 2)
+			return 1
+	return 0
+
+func initcanvas
+	set y 0
+	:initcanvasyloop
+		set x 0
+		:initcanvasxloop
+			gset (str $x , $y) @curcolor
+		++ x
+		if (< $x @width)
+			goto initcanvasxloop
+	++ y
+	if (< $y @height)
+		goto initcanvasyloop
+	return
+
+
+func rendercanvas
+	set y 0
+	
+	// If the image isn't scaled, run a faster render function.
+	if (= @scale 1)
+		goto fastdrawyloop
+		
+	:drawyloop
+		set x 0
+		:drawxloop
+			color (gget $x , $y)
+			rect (* $x @scale) (* $y @scale) @scale @scale
+		++ x
+		if (< $x @width)
+			goto drawxloop
+	++ y
+	if (< $y @height)
+		goto drawyloop
+	return
+	
+	:fastdrawyloop
+		set x 0
+		:fastdrawxloop
+			color (gget $x , $y)
+			rect $x $y 1 1
+		++ x
+		if (< $x @width)
+			goto fastdrawxloop
+	++ y
+	if (< $y @height)
+		goto fastdrawyloop
+	return
+
+func button
+args x y s dx dy
+	img 0 $x (+ $y (* (&& (mouseat $dx $dy $s $s) (mouse 0)) 32)) $s $s $dx $dy
+	return (&& (mouseat $dx $dy $s $s) (= @mouseuptime 1))
+
+func init
+	res 144 128
+	font "8px sans-serif"
+	gset width 16
+	gset height 16
+	gset scale 3
+	gset curtool @TOOL_PENCIL
+	gset curcolor (peek colors 3)
+	gset mouseuptime 0
+	initcanvas
+	gset curcolor (peek colors 0)
+	return
+
+func fill
+args x y oldcolor
+	if (= (gget $x , $y) $oldcolor)
+		gset (str $x , $y) @curcolor
+	
+	if (= $oldcolor (gget (+ $x 1) , $y))
+		fill (+ $x 1) $y $oldcolor
+
+	if (= $oldcolor (gget $x , (+ $y 1)))
+		fill $x (+ $y 1) $oldcolor
+
+	if (= $oldcolor (gget (- $x 1) , $y))
+		fill (- $x 1) $y $oldcolor
+
+	if (= $oldcolor (gget $x , (- $y 1)))
+		fill $x (- $y 1) $oldcolor
+	return
+
+func mainloop
+	if (mouse 0)
+		gset mouseuptime 0
+	else
+		g++ mouseuptime
+
+	set canvasy (int (/ @mousey @scale))
+	set canvasx (int (/ @mousex @scale))
+
+	if (&& (< $canvasy @height) (< @canvasx @width))
+		color @curcolor
+		rect (* $canvasx @scale) (* $canvasy @scale) @scale @scale
+		if (mouse 0)
+			if (= @curtool @TOOL_PENCIL)
+				gset (str $canvasx , $canvasy) @curcolor
+			else
+				if (= @curtool @TOOL_FILL)
+					fill $canvasx $canvasy (gget $canvasx , $canvasy)
+
+	color @BACKGROUND_COLOR
+	cls
+	rendercanvas
+
+	//color black
+	//text (str "x: " $canvasx "  y: " $canvasy) 0 116
+
+	if (button 0 0 16 1 110)
+		gset curtool @TOOL_PENCIL
+	
+	if (button 16 0 16 18 110)
+		gset curtool @TOOL_FILL
+	
+	set i 0
+	:drawcolorsloop
+		if (button 48 16 8 (+ 1 (* $i 9)) 100)
+			gset curcolor (peek colors $i)
+		color (peek colors $i)
+		rect (+ 3 (* $i 9)) 102 2 2
+	++ i
+	if (< $i (alen colors))
+		goto drawcolorsloop
+	
+	// draw cursor
+	img 0 (* @curtool 6) 64 6 6 @mousex @mousey
+
+	color @curcolor
+	if (= @curtool @TOOL_PENCIL)
+		rect @mousex @mousey 1 1
+	else
+		if (= @curtool @TOOL_FILL)
+			rect (+ @mousex 1) (+ @mousey 2) 1 1
+			rect @mousex (+ @mousey 3) 1 3
+		else
+			if (= @curtool @TOOL_RECT)
+				rect (+ @mousex 3) (+ @mousey 4) 1 1
+				rect (+ @mousex 2) (+ @mousey 5) 2 1
+
+	return

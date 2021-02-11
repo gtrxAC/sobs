@@ -3,13 +3,49 @@
 // ___________________________________________________________________________
 //
 
+func init number
+	// Rounding modes for int
+	gset ROUND_NEAREST 1
+	gset ROUND_UP 2
+	return
+
 //
-// Convert a number to an integer
-func int		
-	return (- $arg0 (% $arg0 1))
+// Convert [number] to an integer
+// By default, the number is rounded down.
+// If [mode] is 1, the number will be rounded to the nearest int
+// If [mode] is 2, the number will be rounded up
+func int
+args number mode
+	if (+ (= (+ (= $mode 1) (> (% $number 1) 0.49999)) 2) (= $mode 2))
+		++ number
+	return (- $number (% $number 1))
 
 //
 // Check if [number] is in the [min] .. [max] range
 func inrange
 args number min max
 	return (&& (>= $number $min) (<= $number $max))
+
+//
+// Return the largest number of the arguments
+func max
+	set value $arg0
+	set i 1
+	:_maxloop
+		if (> (get arg $i) $value)
+	++ i
+	if (< $i $argcount)
+		goto _maxloop
+	return $value
+
+//
+// Return the smallest number of the arguments
+func min
+	set value $arg0
+	set i 1
+	:_minloop
+		if (< (get arg $i) $value)
+	++ i
+	if (< $i $argcount)
+		goto _minloop
+	return $value
